@@ -24,5 +24,5 @@ A regular expression specifies a set of strings that matches it; the
 functions in this module let you check if a particular string matches
 a given regular expression.
 
-
+TODO: Finish re module documentation
 """
