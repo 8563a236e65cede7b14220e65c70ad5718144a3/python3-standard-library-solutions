@@ -68,6 +68,7 @@ def demo(cache_factory):
     print("  demo returning")
     return
 
+
 def main():
     demo(dict)
     print()
