@@ -7073,6 +7073,913 @@ if __name__ == "__main__":
 \end{lstlisting}
 \section{Functools Update Wrapper}
 \begin{lstlisting}[language=Python]
+"""
+Listing 3.2
 
+The partial object does not have __name__ or __doc__ attributes by
+default, and without those attributes, decorated functions are more
+difficult to debug. update_wrapper() can be used to copy or add
+attributes from the original function to the partial object
+"""
+import functools
+
+
+def myfunc(a, b=2):
+    """Docstring for myfunc()."""
+    print("  called myfunc with:", (a, b))
+
+
+def show_details(name, f):
+    """Show details of a callable object"""
+    print(f"{name}:")
+    print("  object:", f)
+    print("  __name__:", end=" ")
+    try:
+        print(f.__name__)
+    except AttributeError:
+        print("(no __name__)")
+    print("  __doc__", repr(f.__doc__))
+    print()
+
+
+def main():
+    show_details("myfunc", myfunc)
+
+    p1 = functools.partial(myfunc, b=4)
+    show_details("raw wrapper", p1)
+
+    print("Updating wrapper:")
+    print("  assign:", functools.WRAPPER_ASSIGNMENTS)
+    print("  update:", functools.WRAPPER_UPDATES)
+    print()
+
+    functools.update_wrapper(p1, myfunc)
+    show_details("updated wrapper", p1)
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Functools Callable}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.3
+
+Partials work with any callable object, not just with stand-alone
+functions
+"""
+import functools
+
+
+class MyClass:
+    """
+    Demonstration class for functools
+    """
+
+    def __call__(self, e, f=6):
+        """Docstring for MyClass.__call__"""
+        print("  called object with:", (self, e, f))
+
+
+def show_details(name, f):
+    """Show details of a callable object"""
+    print(f"{name}:")
+    print("  object:", f)
+    print("  __name__:", end=" ")
+    try:
+        print(f.__name__)
+    except AttributeError:
+        print("(no __name__)")
+    print("  __doc__", repr(f.__doc__))
+    print()
+
+
+def main():
+    o = MyClass()
+    show_details("instance", o)
+    o("e goes here")
+    print()
+
+    p = functools.partial(o, e="default for e", f=8)
+    functools.update_wrapper(p, o)
+    show_details("instance wrapper", p)
+    p()
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Functools Partialmethod}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.4
+
+While partial() returns a callable ready to be used directly,
+partialmethod() returns a callable ready to be used as an unbound method
+of an object.
+"""
+import functools
+
+
+def standalone(self, a=1, b=2):
+    """Standalone function"""
+    print("  called standalone with:", (self, a, b))
+    if self is not None:
+        print("  self.attr = ", self.attr)
+
+
+class MyClass:
+    """Demonstration class for functools"""
+
+    def __init__(self):
+        self.attr = "instance attribute"
+
+    method1 = functools.partialmethod(standalone)
+    method2 = functools.partial(standalone)
+
+
+def main():
+    o = MyClass()
+    print("standalone")
+    standalone(None)
+    print()
+
+    print("method1 as partialmethod")
+    o.method1()
+    print()
+
+    print("method2 as partial")
+    try:
+        o.method2()
+    except TypeError as err:
+        print(f"ERROR: {err}")
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Functools Wraps}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.5
+
+Updating the properties of a wrapped callable is especially useful
+for decorators, because the transformed function ends up with properties
+of the original "bare" functions
+"""
+import functools
+
+
+def show_details(name, f):
+    """Show details of a callable object"""
+    print(f"{name}:")
+    print("  object:", f)
+    print("  __name__:", end=" ")
+    try:
+        print(f.__name__)
+    except AttributeError:
+        print("(no __name__)")
+    print("  __doc__", repr(f.__doc__))
+    print()
+
+
+def simple_decorator(f):
+    @functools.wraps(f)
+    def decorated(a="decorated defaults", b=1):
+        print("  decorated:", (a, b))
+        print("  ", end=" ")
+        return f(a, b=b)
+    return decorated
+
+
+def myfunc(a, b=2):
+    """myfunc() is not complicated"""
+    print("  myfunc:", (a, b))
+    return
+
+
+def main():
+    # The raw function
+    show_details("myfunc", myfunc)
+    myfunc("unwrapped, default b")
+    myfunc("unwrapped, passing b", 3)
+    print()
+
+    # Wrap explicitly
+    wrapped_myfunc = simple_decorator(myfunc)
+    show_details("wrapped_myfunc", wrapped_myfunc)
+    wrapped_myfunc()
+    wrapped_myfunc("args to wrapped", 4)
+    print()
+
+    # Wrap with decorator syntax
+    @simple_decorator
+    def decorated_myfunc(a, b):
+        myfunc(a, b)
+        return
+
+    show_details("decorated_myfunc", decorated_myfunc)
+    decorated_myfunc()
+    decorated_myfunc("args to decorate", 4)
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Functools Total Ordering}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.6
+
+The rich comparison API is designed to allow classes with complex
+comparisons to implement each test in the most efficient way possible.
+However, for classes where comparison is relatively simple, there is no
+point in manually creating each of the rich comparison methods. The
+total_ordering() class decorator takes a class that provides some of the
+methods and adds the rest of them
+
+The class must provide implementation of __eq__() and one other rich
+comparison method. The decorator addes implementations of the rest of
+the methods that work by using the comparisons provided. If a comparison
+cannot be made, the method should return NotImplemented, so the
+comparison can be tried using the reverse comparison operators on
+the other object, before failing entirely.
+"""
+import functools
+import inspect
+import pprint
+
+
+@functools.total_ordering
+class MyObject:
+
+    def __init__(self, val):
+        self.val = val
+
+    def __eq__(self, other):
+        print(f"  testing __eq__({self.val}, {other.val})")
+        return self.val == other.val
+
+    def __gt__(self, other):
+        print(f"  testing __gt__({self.val}, {other.val})")
+        return self.val > other.val
+
+
+def main():
+    print("Methods:\n")
+    pprint.pprint(inspect.getmembers(MyObject, inspect.isfunction))
+
+    a = MyObject(1)
+    b = MyObject(2)
+
+    print("\nComparisons:")
+    for expr in ["a < b", "a <= b", "a == b", "a >= b", "a > b"]:
+        print(f"\n{expr:<6}")
+        result = eval(expr)
+        print(f"  result of {expr}: {result}")
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Functools Cmp To Key}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.7
+
+Since old-style comparison functions are deprecated in Python 3, the
+cmp argument to functions like sort() is also no longer supported. Older
+programs that use comparison functions can use cmp_to_key() to convert
+them to a function that returns a collation key, which is used to
+determine the position in the final sequence
+"""
+import functools
+
+
+class MyObject:
+
+    def __init__(self, val):
+        self.val = val
+
+    def __str__(self):
+        return f"MyObject({self.val})"
+
+
+def compare_obj(a, b):
+    """Old-style comparison function"""
+    print(f"comparing {a} and {b}")
+    if a.val < b.val:
+        return -1
+    elif a.val > b.val:
+        return 1
+    return 0
+
+
+get_key = functools.cmp_to_key(compare_obj)
+
+
+def get_key_wrapper(o):
+    """Wrapper function for get_key to allow for print statements"""
+    new_key = get_key(o)
+    print(f"key_wrapper({o}) -> {new_key!r}")
+    return new_key
+
+
+def main():
+    objs = [MyObject(x) for x in range(5, 0, -1)]
+
+    for o in sorted(objs, key=get_key_wrapper):
+        print(o)
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Functools Lru Cache}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.8
+
+The lru_cache() decorator wraps a function in a "least recently used"
+cache. Arguments to the function are used to build a hash key, which
+is then mapped to the result. Subsequent calls with the same arguments
+will fetch the value from the cache instead of calling the function. The
+decorator also adds methods to the function to examine the state of the
+cache (cache_info()) and empty the cache (cache_clear())
+
+The second time those calls are made with the same values, the results
+appear in the cache. When the cache is cleared and the loops are run
+again, the values must be recomputed
+"""
+import functools
+
+
+@functools.lru_cache()
+def expensive(a, b):
+    print(f"expensive({a}, {b})")
+    return a * b
+
+
+def main():
+    MAX = 2
+
+    print("First set of calls:")
+    for i in range(MAX):
+        for j in range(MAX):
+            expensive(i, j)
+    print(expensive.cache_info())
+
+    print("\nSecond set of calls:")
+    for i in range(MAX+1):
+        for j in range(MAX+1):
+            expensive(i, j)
+    print(expensive.cache_info())
+
+    print("\nClearing cache:")
+    expensive.cache_clear()
+    print(expensive.cache_info())
+
+    print("Third set of calls:")
+    for i in range(MAX):
+        for j in range(MAX):
+            expensive(i, j)
+    print(expensive.cache_info())
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Functools Lru Cache Expire}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.9
+
+To prevent the cache from growing without bounds in a long-running process
+it is given a maximum size. The default is 128 entries, but that size can
+be changed for each cache using the maxsize argument
+"""
+import functools
+
+
+@functools.lru_cache(maxsize=2)
+def expensive(a, b):
+    print(f"called expensive({a}, {b})")
+    return a * b
+
+
+def make_call(a, b):
+    print(f"({a}, {b})", end=" ")
+    pre_hits = expensive.cache_info().hits
+    expensive(a, b)
+    post_hits = expensive.cache_info().hits
+    if post_hits > pre_hits:
+        print("cache hit")
+
+
+def main():
+    print("Establish the cache")
+    make_call(1, 2)
+    make_call(2, 3)
+
+    print("\nUse cached items")
+    make_call(1, 2)
+    make_call(2, 3)
+
+    print("\nCompute a new value, triggering cache expiration")
+    make_call(3, 4)
+
+    print("\nCache still contains one old item")
+    make_call(2, 3)
+
+    print("\nOldest item needs to be recomputed")
+    make_call(1, 2)
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Functools Lru Cache Arguments}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.10
+
+The keys for the cache managed by lru_cache() must be hashable, so all of
+the arguments to the function wrapped with the cache lookup must be
+hashable
+"""
+import functools
+
+
+@functools.lru_cache(maxsize=2)
+def expensive(a, b):
+    print(f"called expensive({a}, {b})")
+    return a * b
+
+
+def make_call(a, b):
+    print(f"({a}, {b})", end=" ")
+    pre_hits = expensive.cache_info().hits
+    expensive(a, b)
+    post_hits = expensive.cache_info().hits
+    if post_hits > pre_hits:
+        print("cache hit")
+
+
+def main():
+    make_call(1, 2)
+    try:
+        make_call([1], 2)
+    except TypeError as err:
+        print(f"ERROR: {err}")
+
+    try:
+        make_call(1, {"2": "two"})
+    except TypeError as err:
+        print(f"ERROR: {err}")
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Functools Reduce}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.11
+
+The reduce() function takes a callable and a sequence of data as input.
+It produces a single value as output based on invoking the callable with
+the values from the sequence and accumulating the resulting output
+"""
+import functools
+
+
+def do_reduce(a, b):
+    print(f"do_reduce({a}, {b})")
+    return a + b
+
+
+def main():
+    data = range(1, 5)
+    print(data)
+    result = functools.reduce(do_reduce, data)
+    print(f"result: {result}")
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Functools Reduce Initializer}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.11
+
+The optional initializer argument is placed at the front of the sequence
+and processed along with other items. This can be used to update a
+previously computed value with new inputs
+"""
+import functools
+
+
+def do_reduce(a, b):
+    print(f"do_reduce({a}, {b})")
+    return a + b
+
+
+def main():
+    data = range(1, 5)
+    print(data)
+    result = functools.reduce(do_reduce, data, 99)
+    print(f"result: {result}")
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Functools Reduce Short Sequences}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.13
+
+Sequences with a single item automatically reduce to that value when no
+initializer is present. Empty lists generate an error, unless an
+initializer is provided
+
+Because the initializer argument serves as a default, but is also
+combined with the new values if the input sequence is not empty, it is
+important to consider carefully whether its use is appropriate. When it
+does not make sense to combined with default with new values, it is
+better to catch the TypeError rather than passing an initializer
+"""
+import functools
+
+
+def do_reduce(a, b):
+    print(f"do_reduce({a}, {b})")
+    return a + b
+
+
+def main():
+    print("Single item in sequence:",
+          functools.reduce(do_reduce, [1]))
+
+    print("Single item in sequence with initializer:",
+          functools.reduce(do_reduce, [1], 99))
+
+    print("Empty sequence with initializer:",
+          functools.reduce(do_reduce, [], 99))
+
+    try:
+        print("Empty sequence:", functools.reduce(do_reduce, []))
+    except TypeError as err:
+        print(f"ERROR: {err}")
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Functools Singledispatch}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.14
+
+In a dynamically typed language like Python, there is often a need to
+perform slightly different operations based on the type of an argument,
+especially when dealing with the difference between a list of items and
+a single item.
+
+It is simple enough to check the type of an argument directly, but in
+cases where the behavioural difference can be isolated into separate
+functions, functools provides the singledispatch() decorator to
+register a set of generic functions for automatic switching based on
+the type of the first argument to a function
+
+The register() attribute of the new function serves as another decorator
+for registering alternative implementations. The first function wrapped
+with singledispatch() is the default implementation if no other
+type-specific function is found, as with the float case in this example.
+"""
+import functools
+
+
+@functools.singledispatch
+def myfunc(arg):
+    print(f"default myfunc({arg!r})")
+
+
+@myfunc.register(int)
+def myfunc_int(arg):
+    print(f"myfunc_int({arg})")
+
+
+@myfunc.register(list)
+def myfunc_list(arg):
+    print("myfunc_list()")
+    for item in arg:
+        print(f"  {item}")
+
+
+def main():
+    myfunc("string argument")
+    myfunc(1)
+    myfunc(2.3)
+    myfunc(["a", "b", "c"])
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Functools Singledispatch Mro}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.15
+
+When no exact match is found for the type, the inheritance order is
+evaluated and the closest matching type is used
+"""
+import functools
+
+
+class A:
+    pass
+
+
+class B(A):
+    pass
+
+
+class C(A):
+    pass
+
+
+class D(B):
+    pass
+
+
+class E(C, D):
+    pass
+
+
+@functools.singledispatch
+def myfunc(arg):
+    print(f"default myfunc({arg.__class__.__name__})")
+
+
+@myfunc.register(A)
+def myfunc_A(arg):
+    print(f"myfunc_A({arg.__class__.__name__})")
+
+
+@myfunc.register(B)
+def myfunc_B(arg):
+    print(f"myfunc_B({arg.__class__.__name__})")
+
+
+@myfunc.register(A)
+def myfunc_C(arg):
+    print(f"myfunc_C({arg.__class__.__name__})")
+
+
+def main():
+    myfunc(A())
+    myfunc(B())
+    myfunc(C())
+    myfunc(D())
+    myfunc(E())
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Itertools Chain}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.16
+
+The itertools module includes a set of functions for working with
+sequence data sets. They are intended to be fast and use memory
+efficiently. They can also be hooked together to express more complicated
+iterations-based algorithms.
+
+Iterator-based code offers better memory consumption characteristics than
+code that uses lists. Since data is not produced from the iterator until
+it is needed, all of the data does not need to be stored in memory at
+the same time.
+
+This "lazy" processing model can reducing swapping and other side effects
+of large data sets, improving performance.
+
+The chain() function takes several iterators as arguments and returns
+a single iterator that produces the contents of all the inputs as though
+they came from a single iterator
+
+chain() makes it easy to process several sequences without constructing
+one large list
+"""
+import itertools
+
+
+def main():
+    for i in itertools.chain([1, 2, 3], ["a", "b", "c"]):
+        print(i, end=" ")
+    print()
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Itertools Chain From Iterable}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.17
+
+If the iterables to be combined are not all know in advance, or if they
+need to be evaluated lazily, chain.from_iterable() can be used to
+construct the chain instead
+"""
+import itertools
+
+
+def make_iterables_to_chain():
+    yield [1, 2, 3]
+    yield ["a", "b", "c"]
+
+
+def main():
+    for i in itertools.chain.from_iterable(make_iterables_to_chain()):
+        print(i, end=" ")
+    print()
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Itertools Zip}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.18
+
+The built-in function zip() returns an iterator that combines the elements
+of several iterators into tuples
+
+zip() stops when the first input iterator is exhausted.
+"""
+
+
+def main():
+    for i in zip([1, 2, 3], ["a", "b", "c"]):
+        print(i)
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Itertools Zip Longest}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.18
+
+To process all of the inputs, even if the iterators produce different
+numbers of values, use zip_longest()
+"""
+import itertools
+
+
+def main():
+    r1 = range(3)
+    r2 = range(2)
+
+    print("zip stops early:")
+    print(list(zip(r1, r2)))
+
+    r1 = range(3)
+    r2 = range(2)
+
+    print("\nzip_longest processes all of the values:")
+    print(list(itertools.zip_longest(r1, r2)))
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Itertools Islice}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.20
+
+The islice() function returns an iterator that returns selected items
+from the input iterator, by index
+
+islice() takes the same arguments as the slice operator for lists: start,
+stop and step. The start and step arguments are optional
+"""
+import itertools
+
+
+def main():
+    print("Stop at 5:")
+    for i in itertools.islice(range(100), 5):
+        print(i, end=" ")
+    print("\n")
+
+    print("Start at 5, Stop at 10:")
+    for i in itertools.islice(range(100), 5, 10):
+        print(i, end=" ")
+    print("\n")
+
+    print("By tens to 100")
+    for i in itertools.islice(range(100), 0, 100, 10):
+        print(i, end=" ")
+    print("\n")
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Itertools Tee}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.21
+
+The tee() function returns several independent iterators (defaults to
+2) based on a single original input
+
+tee() has semantics similar to the Unix tee utility, which repeats
+the values it reads from its inputs and writes them to a named file and
+standard output. The iterators returned by tee() can be used to feed the
+same set of data into multiple algorithms to be processed in parallel
+"""
+import itertools
+
+
+def main():
+    r = itertools.islice(itertools.count(), 5)
+
+    (i1, i2) = itertools.tee(r)
+
+    print("i1:", list(i1))
+    print("i2:", list(i2))
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Itertools Tee Error}
+\begin{lstlisting}[language=Python]
+"""
+Listing 3.22
+
+The new iterators created by tee() share their input, so the original
+iterator should not be used after the new ones are created.
+
+If values are consumed from the original input, the new iterators will
+not produce those values
+"""
+import itertools
+
+
+def main():
+    r = itertools.islice(itertools.count(), 5)
+    (i1, i2) = itertools.tee(r)
+
+    print("r:", end=" ")
+    for i in r:
+        print(i, end=" ")
+        if i > 1:
+            break
+    print()
+
+    print("i1:", list(i1))
+    print("i2:", list(i2))
+
+
+if __name__ == "__main__":
+    main()
+
+\end{lstlisting}
+\section{Doc Module Functools.Py}
+\begin{lstlisting}[language=Python]
+"""
+TODO: add functools module documentation
+"""
 \end{lstlisting}
 \end{document}
