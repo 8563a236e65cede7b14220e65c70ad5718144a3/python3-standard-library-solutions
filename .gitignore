@@ -327,3 +327,5 @@ cython_debug/
 
 #Python pickle
 *.pickle
+
+*.tex
