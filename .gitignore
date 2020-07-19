@@ -329,3 +329,4 @@ cython_debug/
 *.pickle
 
 *.tex
+file_list.txt
